@@ -8,6 +8,7 @@ using System.Net.Http;
 using System.Net.Security;
 using System.Runtime.Versioning;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
 using Installer.Properties;
@@ -51,7 +52,7 @@ internal sealed class InstallCommand : AsyncCommand<InstallCommand.Settings>
 	}
 
 	[SupportedOSPlatform("windows")]
-	public override async Task<int> ExecuteAsync(CommandContext commandContext, Settings settings)
+	public override async Task<int> ExecuteAsync(CommandContext commandContext, Settings settings, CancellationToken ct)
 	{
 		try
 		{
