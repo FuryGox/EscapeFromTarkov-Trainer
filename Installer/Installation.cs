@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -39,12 +39,12 @@ internal class Installation
 		if (obj is not Installation other)
 			return false;
 
-		return other.Location == Location;
+		return string.Equals(other.Location, Location, StringComparison.OrdinalIgnoreCase);
 	}
 
 	public override int GetHashCode()
 	{
-		return Location.GetHashCode();
+		return StringComparer.OrdinalIgnoreCase.GetHashCode(Location);
 	}
 
 	[SupportedOSPlatform("windows")]
@@ -71,8 +71,19 @@ internal class Installation
 				return null;
 			case 1:
 				var first = installations.First();
+				if (!AnsiConsole.Profile.Capabilities.Interactive)
+				{
+					AnsiConsole.MarkupLine($"Using [green]EscapeFromTarkov ({first.Version})[/] in [blue]{first.Location.EscapeMarkup()}[/].");
+					return first;
+				}
 				return AnsiConsole.Confirm($"Continue with [green]EscapeFromTarkov ({first.Version})[/] in [blue]{first.Location.EscapeMarkup()}[/] ?") ? first : null;
 			default:
+				if (!AnsiConsole.Profile.Capabilities.Interactive)
+				{
+					var defaultInst = installations.FirstOrDefault(i => i.UsingSpt) ?? installations.First();
+					AnsiConsole.MarkupLine($"Multiple installations found. Using [green]EscapeFromTarkov ({defaultInst.Version})[/] in [blue]{defaultInst.Location.EscapeMarkup()}[/].");
+					return defaultInst;
+				}
 				var prompt = new SelectionPrompt<Installation> { Title = promptTitle };
 				prompt.AddChoices(installations);
 				return AnsiConsole.Prompt(prompt);
@@ -88,11 +99,7 @@ internal class Installation
 		if (TryDiscoverInstallation(Path.GetDirectoryName(AppContext.BaseDirectory), out installation))
 			yield return installation;
 
-		// SPT default installation path
-		if (TryDiscoverInstallation(Path.Combine(Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.System))!, "SPT"), out installation))
-			yield return installation;
-
-		// SPT locations from MUI cache
+		// SPT locations from MUI cache (covers EFT, SPT.Launcher, SPT.Server, Greed, SIM, and parent directories)
 		foreach (var sptpath in Registry.GetSptInstallationsFromMuiCache())
 		{
 			if (string.IsNullOrEmpty(sptpath))
@@ -106,17 +113,44 @@ internal class Installation
 				yield return installation;
 		}
 
-		if (!Registry.TryGetEscapeFromTarkovInstallationPath(out var path))
-			yield break;
-
-		if (TryDiscoverInstallation(path, out installation))
-			yield return installation;
-
-		var subFolders = Directory.EnumerateDirectories(Path.Combine(path, ".."));
-		foreach (var folder in subFolders)
+		// Common drive paths for standard SPT / Steam / Battlestate installations
+		foreach (var drive in DriveInfo.GetDrives().Where(d => d.DriveType is DriveType.Fixed or DriveType.Removable).Select(d => d.RootDirectory.FullName))
 		{
-			if (TryDiscoverInstallation(folder, out installation))
+			string[] commonPaths = [
+				Path.Combine(drive, "SPT"),
+				Path.Combine(drive, "Games", "SPT"),
+				Path.Combine(drive, "Games", "EscapeFromTarkov"),
+				Path.Combine(drive, "Battlestate Games", "EFT"),
+				Path.Combine(drive, "Battlestate Games", "EscapeFromTarkov"),
+				Path.Combine(drive, "Battlestate Games", "sptarkov"),
+				Path.Combine(drive, "SteamLibrary", "steamapps", "common", "Escape from Tarkov"),
+				Path.Combine(drive, "Steam", "steamapps", "common", "Escape from Tarkov"),
+				Path.Combine(drive, "Program Files (x86)", "Steam", "steamapps", "common", "Escape from Tarkov"),
+				Path.Combine(drive, "Program Files", "Steam", "steamapps", "common", "Escape from Tarkov")
+			];
+
+			foreach (var commonPath in commonPaths)
+			{
+				if (TryDiscoverInstallation(commonPath, out installation))
+					yield return installation;
+			}
+		}
+
+		// Also check official EFT installation from registry if present
+		if (Registry.TryGetEscapeFromTarkovInstallationPath(out var path))
+		{
+			if (TryDiscoverInstallation(path, out installation))
 				yield return installation;
+
+			var parent = Path.Combine(path, "..");
+			if (Directory.Exists(parent))
+			{
+				foreach (var folder in Directory.EnumerateDirectories(parent))
+				{
+					if (TryDiscoverInstallation(folder, out installation))
+						yield return installation;
+				}
+			}
 		}
 	}
 
@@ -130,9 +164,33 @@ internal class Installation
 				return false;
 
 			path = Path.GetFullPath(path.Trim('\"'));
+
+			// If path points to an executable, use its directory
+			if (File.Exists(path))
+			{
+				if (Path.GetFileName(path).Equals("EscapeFromTarkov.exe", StringComparison.OrdinalIgnoreCase))
+					path = Path.GetDirectoryName(path);
+				else
+					return false;
+			}
+
+			if (string.IsNullOrEmpty(path))
+				return false;
+
 			var exe = Path.Combine(path, "EscapeFromTarkov.exe");
 			if (!File.Exists(exe))
-				return false;
+			{
+				// Check if user passed an SPT subfolder like SPT, SPT_Runtime, EscapeFromTarkov_Data
+				if (Path.GetDirectoryName(path) is { } parent && File.Exists(Path.Combine(parent, "EscapeFromTarkov.exe")))
+				{
+					path = parent;
+					exe = Path.Combine(path, "EscapeFromTarkov.exe");
+				}
+				else
+				{
+					return false;
+				}
+			}
 
 			var vi = FileVersionInfo.GetVersionInfo(exe);
 			if (vi.FileVersion == null)
@@ -143,9 +201,10 @@ internal class Installation
 			if (!Directory.Exists(installation.Managed))
 				return false;
 
-			// Starting with 4.0.0, folder layout changed
-			installation.UsingSpt = Directory.Exists(Path.Combine(path, "SPT_Data")) || Directory.Exists(Path.Combine(path, "SPT", "SPT_Data"));
-
+			// Starting with 4.0.0, folder layout changed (SPT_Data, SPT/SPT_Data, or SPT_Runtime)
+			installation.UsingSpt = Directory.Exists(Path.Combine(path, "SPT_Data"))
+				|| Directory.Exists(Path.Combine(path, "SPT", "SPT_Data"))
+				|| Directory.Exists(Path.Combine(path, "SPT_Runtime"));
 
 			var battleye = Path.Combine(path, "BattlEye");
 			installation.UsingSptButNeverRun = installation.UsingSpt && Directory.Exists(battleye);
@@ -156,7 +215,7 @@ internal class Installation
 
 			return true;
 		}
-		catch (IOException)
+		catch (Exception)
 		{
 			return false;
 		}

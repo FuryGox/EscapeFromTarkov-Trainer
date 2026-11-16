@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel;
 using System.IO;
 using System.IO.Compression;
@@ -56,7 +56,7 @@ internal sealed class InstallCommand : AsyncCommand<InstallCommand.Settings>
 	{
 		try
 		{
-			AnsiConsole.MarkupLine("-=[[ [cyan]EscapeFromTarkov-Trainer Universal Installer[/] - [blue]https://github.com/sailro [/]]]=-");
+			AnsiConsole.MarkupLine("-=[[ [cyan]EscapeFromTarkov-Trainer Universal Installer[/] - [blue]https://github.com/FuryGox [/]]]=-");
 			AnsiConsole.WriteLine();
 
 			var installation = Installation.GetTargetInstallation(settings.Path, "Please select where to install the trainer");
@@ -74,7 +74,7 @@ internal sealed class InstallCommand : AsyncCommand<InstallCommand.Settings>
 				if (installation.UsingSptButNeverRun)
 					AnsiConsole.MarkupLine("[yellow]Warning: it seems that you have never run your SPT installation. You should quit now and rerun this installer once it's done.[/]");
 
-				if (!await AnsiConsole.ConfirmAsync("Continue installation (yes I have run the game at least once) ?", cancellationToken: ct))
+				if (AnsiConsole.Profile.Capabilities.Interactive && !await AnsiConsole.ConfirmAsync("Continue installation (yes I have run the game at least once) ?"))
 					return (int)ExitCode.Canceled;
 			}
 
@@ -89,7 +89,7 @@ internal sealed class InstallCommand : AsyncCommand<InstallCommand.Settings>
 			if (result.Compilation == null)
 			{
 				// Failure
-				AnsiConsole.MarkupLine($"[red]Unable to compile trainer for version {installation.Version}. Please file an issue here : https://github.com/sailro/EscapeFromTarkov-Trainer/issues [/]");
+				AnsiConsole.MarkupLine($"[red]Unable to compile trainer for version {installation.Version}. Please file an issue here : https://github.com/FuryGox/EscapeFromTarkov-Trainer/issues [/]");
 				return (int)ExitCode.CompilationFailed;
 			}
 
@@ -117,7 +117,7 @@ internal sealed class InstallCommand : AsyncCommand<InstallCommand.Settings>
 
 				if (pluginResult.Compilation == null)
 				{
-					AnsiConsole.MarkupLine($"[red]Unable to compile plugin for version {installation.Version}. Please file an issue here : https://github.com/sailro/EscapeFromTarkov-Trainer/issues [/]");
+					AnsiConsole.MarkupLine($"[red]Unable to compile plugin for version {installation.Version}. Please file an issue here : https://github.com/FuryGox/EscapeFromTarkov-Trainer/issues [/]");
 					return (int)ExitCode.PluginCompilationFailed;
 				}
 
@@ -140,7 +140,7 @@ internal sealed class InstallCommand : AsyncCommand<InstallCommand.Settings>
 		}
 		catch (Exception ex)
 		{
-			AnsiConsole.MarkupLine($"[red]Error: {ex.Message.EscapeMarkup()}. Please file an issue here : https://github.com/sailro/EscapeFromTarkov-Trainer/issues [/]");
+			AnsiConsole.MarkupLine($"[red]Error: {ex.Message.EscapeMarkup()}. Please file an issue here : https://github.com/FuryGox/EscapeFromTarkov-Trainer/issues [/]");
 			return (int)ExitCode.Failure;
 		}
 
@@ -186,7 +186,7 @@ internal sealed class InstallCommand : AsyncCommand<InstallCommand.Settings>
 		result = await GetCompilationAsync(context);
 
 		if (result.Errors.Length == 0)
-			AnsiConsole.MarkupLine("[yellow]We found a fallback! But please file an issue here : https://github.com/sailro/EscapeFromTarkov-Trainer/issues [/]");
+			AnsiConsole.MarkupLine("[yellow]We found a fallback! But please file an issue here : https://github.com/FuryGox/EscapeFromTarkov-Trainer/issues [/]");
 
 		return result;
 	}
@@ -341,7 +341,7 @@ internal sealed class InstallCommand : AsyncCommand<InstallCommand.Settings>
 					};
 
 					using var client = new HttpClient(handler);
-					var buffer = await client.GetByteArrayAsync(new Uri($"https://github.com/sailro/EscapeFromTarkov-Trainer/archive/refs/heads/{branch}.zip"));
+					var buffer = await client.GetByteArrayAsync(new Uri($"https://github.com/FuryGox/EscapeFromTarkov-Trainer/archive/refs/heads/{branch}.zip"));
 					var stream = new MemoryStream(buffer);
 					result = new ZipArchive(stream, ZipArchiveMode.Read);
 				});

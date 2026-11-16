@@ -1,7 +1,14 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props"
+    Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
+    <ItemDefinitionGroup>
+      <!-- Chặn MSBuild copy các file DLL game (Unity, SPT, BepInEx) ra thư mục bin -->
+      <Reference>
+        <Private>True</Private>
+      </Reference>
+    </ItemDefinitionGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{00C66BBD-ED7F-4E01-B7E4-0388F76FD31C}</ProjectGuid>
@@ -10,7 +17,7 @@
     <TargetFrameworkVersion>v4.7.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <LangVersion>latest</LangVersion>
-    <EFTBasePath>C:\Battlestate Games\sptarkov</EFTBasePath>
+    <EFTBasePath>J:\SteamLibrary\steamapps\common\Escape from Tarkov</EFTBasePath>
     <EFTDataPath>$(EFTBasePath)\EscapeFromTarkov_Data</EFTDataPath>
     <EFTManagedPath>$(EFTDataPath)\Managed</EFTManagedPath>
     <EFTBepInExPath>$(EFTBasePath)\BepInEx</EFTBepInExPath>
@@ -69,4 +76,19 @@
   <PropertyGroup>
     <PostBuildEvent>copy /Y "$(TargetPath)" "$(EFTBepInExPluginsPath)"</PostBuildEvent>
   </PropertyGroup>
+  <Target Name="CoreGenerateSatelliteAssemblies" />
+  <Target Name="GenerateSatelliteAssemblies" />
+
+  <ItemGroup>
+    <EmbeddedResource Update="@(EmbeddedResource)">
+      <WithCulture>false</WithCulture>
+      <Culture></Culture>
+    </EmbeddedResource>
+  </ItemGroup>
+  <Target Name="FilterCopyLocalFiles" AfterTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)"
+        Condition="'%(Filename)' != 'NLog.EFT.Trainer' and '%(Filename)' != 'BepInExPlugin'" />
+    </ItemGroup>
+  </Target>
 </Project>
